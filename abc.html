@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Browser Git Explorer</title>
+
+    <script src="https://unpkg.com/@isomorphic-git/lightning-fs"></script>
+    <script src="https://unpkg.com/isomorphic-git"></script>
+    <script type="module">
+      import http from "https://unpkg.com/isomorphic-git@beta/http/web/index.js"
+
+      const fs = new LightningFS("fs")
+      const pfs = fs.promises
+      const dir = "/repo"
+
+      async function listFilesRecursively(path, prefix = "") {
+        let entries
+        try {
+          entries = await pfs.readdir(path)
+        } catch (err) {
+          // likely a file, not a directory
+          return []
+        }
+
+        const results = []
+        for (const entry of entries) {
+          const fullPath = `${path}/${entry}`
+          const stat = await pfs.stat(fullPath)
+          if (stat.type === "dir") {
+            results.push(prefix + entry + "/")
+            const nested = await listFilesRecursively(fullPath, prefix + entry + "/")
+            results.push(...nested)
+          } else {
+            results.push(prefix + entry)
+          }
+        }
+        return results
+      }
+
+      async function main() {
+        const output = document.getElementById("output")
+        output.textContent = "Cloning repository..."
+        try {
+          await git.clone({
+            fs,
+            http,
+            dir,
+            url: "https://github.com/greffgreff/basic-worker",
+            corsProxy: "https://cors.isomorphic-git.org",
+            singleBranch: true,
+            depth: 1,
+          })
+
+          output.textContent = "Repository cloned. Listing files..."
+
+          const files = await listFilesRecursively(dir)
+          output.innerHTML = `
+            <h3>Files in repository:</h3>
+            <ul>${files.map(f => `<li>${f}</li>`).join("")}</ul>
+          `
+        } catch (err) {
+          output.innerHTML = `<p style="color:red">Error: ${err.message}</p>`
+        }
+      }
+
+      main()
+    </script>
+  </head>
+  <body style="font-family: system-ui, sans-serif; padding: 2rem; background: #f9fafb;">
+    <h1>Browser Git Explorer</h1>
+    <div id="output">Initializing...</div>
+  </body>
+</html>
